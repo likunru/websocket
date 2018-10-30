@@ -2,6 +2,8 @@ let socket = io();
 // 监听与服务端的链接
 socket.on('connect', () => {
     console.log('链接成功');
+    // 向服务器发getHistory来拿消息
+    socket.emit('getHistory');
 })
 
 // 获取列表list，输入框content,按钮sendBtn元素
@@ -38,7 +40,7 @@ socket.on('message', data => {
     console.log(111, data);
     li.className = 'list-group-name';
     li.innerHTML = '<p style="color: #ccc;"><span class="user" style="color:'+ data.color 
-      + ';">' + data.user + '</span>' + data.createAt + '</p><p class="content" style="color:' + data.color +';">' + data.content + '</p>';
+      + ';">' + data.user + '</span>' + data.createAt + '</p><p class="content" style="background:' + data.color +';">' + data.content + '</p>';
     list.appendChild(li);
     // 讲聊天区的滚动条设置到最新内容的位置
     list.scrollTop = list.scrollHeight;
@@ -77,4 +79,15 @@ function leave(room) {
 socket.on('leave', room => {
     document.getElementById('leave-' + room).style.display = 'none';
     document.getElementById('join-' + room).style.display = 'inline-block';
+})
+// 接收历史消息
+socket.on('history', history => {
+    let html = history.map(data => {
+        return '<li class="list-group-item">' +
+        '<p style="color: #ccc;"><span class="user" style="color:' + data.color + '">' + data.user + '</span>' + data.createAt + '</p>' +
+        '<p class="content" style="background-color: ' + data.color + '">' + data.content + '</p>'
+    }).join('');
+    list.innerHTML = html + '<li style="margin: 16px 0;text-align: center">以上是历史消息</li>';
+    // 将聊天区域的滚动条设置到最新内容的位置
+    list.scrollTop = list.scrollHeight;
 })

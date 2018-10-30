@@ -7,6 +7,8 @@ const SYSTEM = '系统';
 // 设置静态文件夹，会默认找当前目录下的index.html文件当做访问的页面
 app.use(express.static(__dirname));
 
+//保存最近的20条消息记录
+let msgHistory = [];
 
 // 用来保存对应的socket,就是记录对方的socket实例
 let socketObj = {};
@@ -22,7 +24,10 @@ function shuffle(arr) {
         // 解构赋值实现变量互换
         [arr[len], arr[random]] = [arr[random], arr[len]];
     }
+    return arr;
 }
+// 记录一个socket.id用来查找对应的用户
+let mySocket = {};
 // websocket是依赖http协议进行握手的
 const server = require('http').createServer(app);
 const io = require('socket.io')(server);
@@ -33,6 +38,8 @@ io.on('connection', socket => {
     let username;
     let color; //  用于存放颜色的变量
     let rooms = []; //记录进入了那些房间的数组
+    // 所有连接到服务端的socket.id
+    mySocket[socket.id] = socket;
     //监听客服端发过来的信息
     socket.on('message', msg => {
         // 服务端发送message事件，把msg消息再发送给客户端
@@ -57,12 +64,46 @@ io.on('connection', socket => {
                     })
                 }
             } else { // 公聊信息
-                io.emit('message', {
+                // 如果rooms数组有值，就代表用户进入了房间
+                if (rooms.length) {
+                    // 用来存储进入房间内的对应的socket.id
+                    let socketJson = {};
+
+                    rooms.forEach(room => {
+                        // 取得所有进入房间用户的socket.id
+                        let roomSockets = io.sockets.adapter.rooms[room].sockets;
+                        Object.keys(roomSockets).forEach(socketId => {
+                            // 进行去重，在socketJson中只有对应唯一的socketId
+                            if (!socketJson[socketId]) {
+                                socketJson[socketId] = 1;
+                            }
+                        })
+                    })
+                    // 遍历所有socketJson,在mySocket里找到对应的id，然后发送消息
+                    Object.keys(socketJson).forEach(socketId => {
+                        mySocket[socketId].emit('message', {
+                            user: username,
+                            color,
+                            content: msg,
+                            createAt: new Date().toLocaleString()
+                        })
+                    })
+                } else { // 如果不是群聊，向所有人发送信息
+                  io.emit('message', {
                     user: username,
                     color,
                     content: msg,
                     createAt: new Date().toLocaleString()
-                })    
+                  })
+                  // 把发送的消息push到msgHistory中
+                  // 真实情况是存到数据库里
+                  msgHistory.push({
+                      user: username,
+                      color,
+                      content: msg,
+                      createAt: new Date().toLocaleString()
+                  })  
+                }
             }
              
         } else {
@@ -74,7 +115,7 @@ io.on('connection', socket => {
             socket.broadcast.emit('message', {
                 user: SYSTEM,
                 color,
-                constent: '${username}加入了聊天',
+                constent: username + '加入了聊天',
                 createAt: new Date().toLocaleDateString()
             })
         }
@@ -93,7 +134,7 @@ io.on('connection', socket => {
             socket.send({
                 user: SYSTEM,
                 color,
-                content: '你已加入${room}战队',
+                content: '你已加入' + room + '战队',
                 createAt: new Date().toLocaleString
             })
         }
@@ -110,9 +151,18 @@ io.on('connection', socket => {
             socket.send({
                 user: SYSTEM,
                 color,
-                content: '你离开${room}战队',
+                content: '你离开' + room + '战队',
                 createAt: new Date().toLocaleString
             })
+        }
+    })
+    // 监听获取历史消息的事件
+    socket.on('getHistory', () => {
+        // 通过数组的slice方法截取最新的20条信息
+        if (msgHistory.length) {
+            let history = msgHistory.slice(msgHistory.length - 20);
+            // 发送history事件并返回history消息数组给客户端
+            socket.emit('history', history);
         }
     })
 })
