@@ -37,7 +37,6 @@ input.onkeydown = function (event) {
 socket.on('message', data => {
     // 创建新的li元素，最终将其添加到list列表
     let li = document.createElement('li');
-    console.log(111, data);
     li.className = 'list-group-name';
     li.innerHTML = '<p style="color: #ccc;"><span class="user" style="color:'+ data.color 
       + ';">' + data.user + '</span>' + data.createAt + '</p><p class="content" style="background:' + data.color +';">' + data.content + '</p>';
